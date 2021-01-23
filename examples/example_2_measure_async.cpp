@@ -28,13 +28,14 @@ private:
     DigitalOut &_user_led;
     bool _invert_led;
     Timer _timer;
-    measure_result_t _result = { 0, 0.0f };
+    measure_result_t _result = { 0, 0ms };
     microseconds_u32 _call_delay = 0ms;
     Event<void()> _print_measure_result_event;
 
     void _print_measure_result()
     {
-        printf("measurement: err = %2i, call_delay = %5u distance = %f\n", _result.err, _call_delay.count(), _result.distance);
+        float distance = SimpleHCSR04Driver::delay_to_distance_default(_result.delay);
+        printf("measurement: err = %2i, call_delay = %5u distance = %f\n", _result.err, _call_delay.count(), distance);
     }
 
     void _measure_cb(const measure_result_t *result)
@@ -55,12 +56,12 @@ public:
         _user_led = _invert_led;
     }
 
-    void run_measument(SimpleHCSR04Driver *driver)
+    void run_measurement(SimpleHCSR04Driver *driver)
     {
         _timer.start();
         _timer.reset();
         _user_led = !_invert_led;
-        driver->measure_distance_async(callback(this, &AsyncMeasureDemo::_measure_cb));
+        driver->measure_delay_async(callback(this, &AsyncMeasureDemo::_measure_cb));
     }
 };
 
@@ -75,7 +76,7 @@ int main()
 
     printf("-- start --\n");
     while (true) {
-        measure_demo.run_measument(&hcsr04_driver);
+        measure_demo.run_measurement(&hcsr04_driver);
         ThisThread::sleep_for(200ms);
     }
     return 0;

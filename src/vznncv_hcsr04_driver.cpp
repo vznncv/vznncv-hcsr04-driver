@@ -64,10 +64,10 @@ void SimpleHCSR04Driver::_echo_irq_fall_handler()
     if (_result_callback) {
         if (_echo_start_rel == 0ms) {
             result.err = _ERR_NO_START;
-            result.distance = 0.0f;
+            result.delay = 0ms;
         } else {
             result.err = 0;
-            result.distance = (_echo_end_rel - _echo_start_rel).count() * _PULSE_K;
+            result.delay = _echo_end_rel - _echo_start_rel;
         }
         _result_callback(&result);
     }
@@ -82,7 +82,7 @@ void SimpleHCSR04Driver::_timeout_handler()
     _echo_in.disable_irq();
     if (_result_callback) {
         result.err = _ERR_TIMEOUT;
-        result.distance = 0.0f;
+        result.delay = 0ms;
         _result_callback(&result);
     }
     // unlock next measurement
@@ -125,19 +125,19 @@ SimpleHCSR04Driver::SimpleHCSR04Driver(PinName trigger_pin, PinName echo_pin)
     _echo_in.fall(callback(this, &SimpleHCSR04Driver::_echo_irq_fall_handler));
 }
 
-int SimpleHCSR04Driver::measure_distance_async(Callback<void(const measure_result_t *)> result_callback)
+int SimpleHCSR04Driver::measure_delay_async(Callback<void(const measure_result_t *)> result_callback)
 {
     return _measure_distance_async_impl(result_callback, true);
 }
 
-int SimpleHCSR04Driver::measure_distance(float *distance)
+int SimpleHCSR04Driver::measure_delay(microseconds_u32 *delay)
 {
     int err;
-    measure_result_t cb_result = { 0, 0.0f };
+    measure_result_t cb_result = { 0, 0ms };
 
     if (_measure_lock.test_and_set()) {
         // measurement in progress
-        *distance = 0;
+        *delay = 0ms;
         return _ERR_BUSY;
     }
     _event_flag.clear();
@@ -152,6 +152,18 @@ int SimpleHCSR04Driver::measure_distance(float *distance)
     }
     _event_flag.wait_all(_EVENT_FLAG);
 
-    *distance = cb_result.distance;
+    *delay = cb_result.delay;
     return cb_result.err;
 }
+
+int SimpleHCSR04Driver::measure_distance(float *distance)
+{
+    microseconds_u32 delay;
+    int err = measure_delay(&delay);
+    if (err) {
+        *distance = 0;
+        return err;
+    }
+    *distance = delay_to_distance_default(delay);
+    return 0;
+};
