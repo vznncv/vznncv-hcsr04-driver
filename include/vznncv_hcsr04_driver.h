@@ -13,9 +13,9 @@ using microseconds_u32 = mbed::chrono::microseconds_u32;
  */
 struct measure_result_t {
     measure_result_t() = default;
-    measure_result_t(int err, float distance)
+    measure_result_t(int err, microseconds_u32 delay)
         : err(err)
-        , distance(distance)
+        , delay(delay)
     {
     }
 
@@ -27,9 +27,11 @@ struct measure_result_t {
     int err;
 
     /**
-     * Measured distance.
+     * Delay between signal and echo.
+     *
+     * Note: use SimpleHCSR04Driver::delay_to_distance_default to get distance in meters.
      */
-    float distance;
+    microseconds_u32 delay;
 };
 
 /**
@@ -99,18 +101,44 @@ public:
     ~SimpleHCSR04Driver() = default;
 
     /**
-     * Measure distance asynchronously.
+     * Measure delay between signal and echo asynchronously.
      *
      * This method starts measurement and returns control. Result will be passed by @c result_callback.
      *
      * If the method returns non-zero code, the callback won't be called.
      *
-     * The method itself is IRQ safe, but it has 10us delay, so it isn't recommended to run it from IRQ context.
+     * The method itself is IRQ safe, but it consumes about 10us, so it isn't recommended to run it from IRQ context.
      *
      * @param result_callback IRQ safe result callback
      * @return 0 on success, otherwise non-zero value
      */
-    int measure_distance_async(Callback<void(const measure_result_t *result)> result_callback);
+    int measure_delay_async(Callback<void(const measure_result_t *result)> result_callback);
+
+    /**
+     * Measure delay between signal and echo.
+     *
+     * @param delay variable to store delay
+     * @return 0 on success, otherwise non-zero value
+     */
+    int measure_delay(microseconds_u32 *delay);
+
+    /**
+     * Helper base coefficient to convert delay to distance under normal conditions.
+     */
+    static constexpr float DELAY_TO_DISTANCE_K = 341.0f / (2 * 1'000'000);
+
+    /**
+     * Convert delay between signal and echo to distance.
+     *
+     * This function assumes normal conditions.
+     *
+     * @param delay delay between signal and echo
+     * @return distance in meters
+     */
+    static constexpr float delay_to_distance_default(microseconds_u32 delay)
+    {
+        return delay.count() * DELAY_TO_DISTANCE_K;
+    }
 
     /**
      * Measure distance.
